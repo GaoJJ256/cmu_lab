@@ -26,7 +26,7 @@ namespace bustub {
 std::vector<std::string> GenerateNRandomString(int n) {
   std::random_device rd;
   std::mt19937 gen(rd());
-  std::uniform_int_distribution<char> char_dist('A', 'z');
+  std::uniform_int_distribution<int> char_dist('A', 'z');
   std::uniform_int_distribution<int> len_dist(1, 30);
 
   std::vector<std::string> rand_strs(n);
