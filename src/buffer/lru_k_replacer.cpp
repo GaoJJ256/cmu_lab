@@ -33,7 +33,6 @@ auto LRUKReplacer::Evict(frame_id_t *frame_id) -> bool {
             is_evictable_[frame] = false;
             return true;
         }
-    
     }
 
     for(auto it = cache_list_.rbegin(); it != cache_list_.rend(); it ++) {
