@@ -154,7 +154,7 @@ auto ExtendibleHashTable<K, V>::Bucket::Find(const K &key, V &value) -> bool {
       value = item.second;
       return true;
     }
-    return fl
+    return false;
   });
 }
 
