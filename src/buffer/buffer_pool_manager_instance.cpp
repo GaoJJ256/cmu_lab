@@ -130,13 +130,77 @@ auto BufferPoolManagerInstance::FetchPgImp(page_id_t page_id) -> Page * {
   return &pages_[frame_id];  
 }
 
-auto BufferPoolManagerInstance::UnpinPgImp(page_id_t page_id, bool is_dirty) -> bool { return false; }
+auto BufferPoolManagerInstance::UnpinPgImp(page_id_t page_id, bool is_dirty) -> bool { 
+  std::scoped_lock<std::mutex> lock(latch_);
 
-auto BufferPoolManagerInstance::FlushPgImp(page_id_t page_id) -> bool { return false; }
+  frame_id_t frame_id;
+  if(!page_table_->Find(page_id, frame_id)){
+    return false;
+  }
 
-void BufferPoolManagerInstance::FlushAllPgsImp() {}
+  if(pages_[frame_id].GetPinCount() <= 0) {
+    return false;
+  }
 
-auto BufferPoolManagerInstance::DeletePgImp(page_id_t page_id) -> bool { return false; }
+  if(is_dirty) {
+    pages_[frame_id].is_dirty_ = is_dirty;
+  }
+
+  pages_[frame_id].pin_count_--;
+
+  if(pages_[frame_id].GetPinCount() == 0) {
+    replacer_->SetEvictable(frame_id, true);
+  }
+
+  return true; 
+}
+
+auto BufferPoolManagerInstance::FlushPgImp(page_id_t page_id) -> bool { 
+  if(page_id == INVALID_PAGE_ID) {
+    return false;
+  }
+  frame_id_t frame_id;
+
+  if(!page_table_->Find(page_id, frame_id)) {
+    return false;
+  }
+
+  disk_manager_->WritePage(frame_id, pages_[frame_id].GetData());
+
+  return true; 
+}
+
+void BufferPoolManagerInstance::FlushAllPgsImp() {
+  std::scoped_lock<std::mutex> lock(latch_);
+  for(auto i = 0; i < pool_size_; i ++) {
+    FlushPgImp(pages_[i].GetPageId());
+  }
+}
+
+auto BufferPoolManagerInstance::DeletePgImp(page_id_t page_id) -> bool { 
+  std::scoped_lock<std::mutex> lock(latch_);
+
+  frame_id_t frame_id;
+  if(!page_table_->Find(page_id, frame_id)) {
+    return true;
+  }
+  if(pages_[frame_id].GetPinCount() > 0) {
+    return false;
+  }
+
+  replacer_->Remove(frame_id);
+
+  pages_[frame_id].ResetMemory();
+  pages_[frame_id].page_id_ = INVALID_PAGE_ID;
+  pages_[frame_id].pin_count_ = 0;
+  pages_[frame_id].is_dirty_ = false;
+
+  page_table_->Remove(page_id);
+  free_list_.push_back(frame_id);
+  DeallocatePage(page_id);
+
+  return true; 
+}
 
 auto BufferPoolManagerInstance::AllocatePage() -> page_id_t { return next_page_id_++; }
 
